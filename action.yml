@@ -96,5 +96,5 @@ runs:
     - name: Set outputs
       shell: bash
       run: |
-        echo "bundle-id=$BUNDLE_ID" >> "$GITHUB_OUTPUT"
-        echo "version=$APP_VERSION" >> "$GITHUB_OUTPUT"
+        echo "bundle-id=${{ env.BUNDLE_ID }}" >> "$GITHUB_OUTPUT"
+        echo "version=${{ env.APP_VERSION }}" >> "$GITHUB_OUTPUT"
