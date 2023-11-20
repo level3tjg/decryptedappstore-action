@@ -1,0 +1,99 @@
+name: decryptedappstore-action
+author: level3tjg
+description: Download decrypted IPA from https://armconverter.com/decryptedappstore
+inputs:
+  appstore_url:
+    description: AppStore URL for the app you want to download
+    required: true
+    type: string
+  cache:
+    description: Cache downloaded IPAs
+    default: true
+    type: boolean
+  path:
+    description: Path to download the ipa to
+    required: true
+    type: string
+  token:
+    description: Your decryptedappstore session token
+    required: true
+    type: string
+  version:
+    description: Version of the app to download
+    default: latest-available
+    type: string
+
+runs:
+  using: composite
+  steps:
+    - name: Install dependencies (Linux)
+      if: ${{ runner.os == 'Linux' }}
+      shell: bash
+      run: |
+        sudo apt update
+        sudo apt install -y libxml2-utils
+      env:
+        DEBIAN_FRONTEND: noninteractive
+
+    - name: Extract AppStore id from URL
+      shell: bash
+      run: |
+        APPSTORE_URL="${{ inputs.appstore_url }}"
+        echo "APPSTORE_ID=$(echo ${APPSTORE_URL##*/} | cut -c 3-)" >> $GITHUB_ENV
+
+    - name: Extract bundle identifier from AppStore page
+      shell: bash
+      run: |
+        echo "BUNDLE_ID=$(curl -s "${{ inputs.appstore_url }}" | xmllint --html --xpath "string(//script[@id=\"shoebox-media-api-cache-apps\"])" - 2> /dev/null | jq -r ".[] | fromjson | .d[0].attributes.platformAttributes.ios.bundleId")" >> $GITHUB_ENV
+
+    - name: Resolve version
+      if: ${{ contains(inputs.version, 'latest') }}
+      shell: bash
+      run: |
+        versions=$(curl -s -X POST -H "Cookie: session=$SESSION_TOKEN" "https://armconverter.com/decryptedappstore/versions/$APPSTORE_ID/0?country=us" | jq .versions)
+        latest_version=$(echo $versions | jq ".[-1]")
+        exists=$(curl -s -H "Referer: https://armconverter.com/decryptedappstore" -H "Cookie: session=$SESSION_TOKEN" "https://armconverter.com/decryptedappstore/download/$APPSTORE_ID/$BUNDLE_ID/$(echo $latest_version | jq .ver)/info" | jq -r .exists)
+        if [[ $exists != 'true' ]]; then
+          if [[ ${{ inputs.version }} != 'latest-available' ]]; then
+            echo "Version $(echo $latest_version | jq -r .ver) is not available"
+            exit 1
+          fi
+          for ((i = 1; i < $(echo $versions | jq length); i++)); do
+            version=$(echo $versions | jq ".[-$i]")
+            version_string=$(echo $version | jq -r .ver)
+            exists=$(echo $version | jq -r .exists)
+            if [[ ! -z $version_string && $exists == 'true' ]]; then
+              echo "APP_VERSION=$version_string" >> $GITHUB_ENV
+              break
+            fi
+          done
+        fi
+      env:
+        SESSION_TOKEN: ${{ inputs.token }}
+
+    - name: Cache IPA
+      id: cache-ipa
+      if: ${{ inputs.cache == 'true' }}
+      uses: actions/cache@v3
+      with:
+        path: ${{ inputs.path }}
+        key: ${{ env.BUNDLE_ID }}-${{ env.APP_VERSION }}-IPA
+
+    - name: Download IPA
+      if: ${{ inputs.cache != 'true' || steps.cache-ipa.outputs.cache-hit != 'true' }}
+      shell: bash
+      run: |
+        token=$(curl -s -X POST -H "Referer: https://armconverter.com/decryptedappstore" -H "Cookie: session=$SESSION_TOKEN" "https://armconverter.com/decryptedappstore/download/$APPSTORE_ID/$BUNDLE_ID/$APP_VERSION/prepare" | jq -r .token)
+        if [[ $token == 'null' || -z $token ]]; then
+          echo "Failed to get download link for IPA"
+          exit 1
+        fi
+        curl -s -o "${{ inputs.path }}" "https://armconverter.com/decryptedappstore/download/$APPSTORE_ID/$BUNDLE_ID/$APP_VERSION?token=$token"
+      env:
+        SESSION_TOKEN: ${{ inputs.token }}
+
+    - name: Set outputs
+      shell: bash
+      run: |
+        echo "bundle-id=$BUNDLE_ID" >> $GITHUB_OUTPUT
+        echo "version=$APP_VERSION" >> $GITHUB_OUTPUT

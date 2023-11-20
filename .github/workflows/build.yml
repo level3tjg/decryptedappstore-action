@@ -1,0 +1,29 @@
+name: CI
+
+on:
+  push:
+    paths:
+      - 'action.yml'
+      - '.github/workflows/build.yml'
+
+jobs:
+  build:
+    strategy:
+      matrix:
+        url:
+          - "https://apps.apple.com/us/app/reddit/id1064216828"
+          - "https://apps.apple.com/us/app/x/id333903271"
+          - "https://apps.apple.com/us/app/youtube-watch-listen-stream/id544007664"
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download IPA
+        uses: level3tjg/decryptedappstore-action@main
+        with:
+          appstore_url: "${{ matrix.url }}"
+          cache: false
+          path: App.ipa
+          token: "${{ secrets.SESSION_TOKEN }}"
+
+      - name: Check IPA was downloaded
+        if: hashFiles('App.ipa') == ''
+        run: exit 1
