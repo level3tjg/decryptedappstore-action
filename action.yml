@@ -101,6 +101,7 @@ runs:
         SESSION_TOKEN: ${{ inputs.token }}
 
     - name: Set outputs
+      id: set-outputs
       shell: bash
       run: |
         echo "bundle-id=${{ env.BUNDLE_ID }}" >> "$GITHUB_OUTPUT"
