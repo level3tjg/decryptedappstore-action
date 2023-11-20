@@ -38,13 +38,14 @@ runs:
     - name: Extract AppStore id from URL
       shell: bash
       run: |
-        APPSTORE_URL="${{ inputs.appstore_url }}"
-        echo "APPSTORE_ID=$(echo ${APPSTORE_URL##*/} | cut -c 3-)" >> $GITHUB_ENV
 
-    - name: Extract bundle identifier from AppStore page
+    - name: Set environment variables
       shell: bash
       run: |
+        APPSTORE_URL="${{ inputs.appstore_url }}"
+        echo "APPSTORE_ID=$(echo ${APPSTORE_URL##*/} | cut -c 3-)" >> $GITHUB_ENV
         echo "BUNDLE_ID=$(curl -s "${{ inputs.appstore_url }}" | xmllint --html --xpath "string(//script[@id=\"shoebox-media-api-cache-apps\"])" - 2> /dev/null | jq -r ".[] | fromjson | .d[0].attributes.platformAttributes.ios.bundleId")" >> $GITHUB_ENV
+        echo "APP_VERSION=${{ inputs.version }}" >> $GITHUB_ENV
 
     - name: Resolve version
       if: ${{ contains(inputs.version, 'latest') }}
