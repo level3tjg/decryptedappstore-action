@@ -56,7 +56,7 @@ runs:
       run: |
         versions=$(curl -s -X POST -H "Cookie: session=$SESSION_TOKEN" "https://armconverter.com/decryptedappstore/versions/$APPSTORE_ID/0?country=us" | jq .versions)
         latest_version=$(echo $versions | jq ".[-1]")
-        available=$(curl -s -H "Referer: https://armconverter.com/decryptedappstore" -H "Cookie: session=$SESSION_TOKEN" "https://armconverter.com/decryptedappstore/download/$APPSTORE_ID/$BUNDLE_ID/$(echo $latest_version | jq .ver)/info" | jq -r .available)
+        available=$(curl -s -H "Referer: https://armconverter.com/decryptedappstore" -H "Cookie: session=$SESSION_TOKEN" "https://armconverter.com/decryptedappstore/download/$APPSTORE_ID/$BUNDLE_ID/$(echo $latest_version | jq -r .ver)/info" | jq -r .available)
         if [[ $available != 'true' ]]; then
           if [[ ${{ inputs.version }} != 'latest-available' ]]; then
             echo "Version $(echo $latest_version | jq -r .ver) is not available"
@@ -67,7 +67,7 @@ runs:
             version_string=$(echo $version | jq -r .ver)
             exists=$(echo $version | jq -r .exists)
             if [[ ! -z $version_string && $exists == 'true' ]]; then
-              available=$(curl -s -X POST -H "Cookie: session=$SESSION_TOKEN" "https://armconverter.com/decryptedappstore/download/$APPSTORE_ID/$BUNDLE_ID/$(echo $latest_version | jq .ver)/info" | jq -r .available)
+              available=$(curl -s -X POST -H "Cookie: session=$SESSION_TOKEN" "https://armconverter.com/decryptedappstore/download/$APPSTORE_ID/$BUNDLE_ID/$(echo $latest_version | jq -r .ver)/info" | jq -r .available)
               if [[ $available == 'true' ]]; then
                 echo "APP_VERSION=$version_string" >> $GITHUB_ENV
                 break
