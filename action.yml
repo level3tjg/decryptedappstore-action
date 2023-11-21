@@ -42,10 +42,6 @@ runs:
       env:
         DEBIAN_FRONTEND: noninteractive
 
-    - name: Extract AppStore id from URL
-      shell: bash
-      run: |
-
     - name: Set environment variables
       shell: bash
       run: |
