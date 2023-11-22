@@ -67,7 +67,7 @@ runs:
             version_string=$(echo $version | jq -r .ver)
             exists=$(echo $version | jq -r .exists)
             if [[ ! -z $version_string && $exists == 'true' ]]; then
-              available=$(curl -s -H "Cookie: session=$SESSION_TOKEN" "https://armconverter.com/decryptedappstore/download/$APPSTORE_ID/$BUNDLE_ID/$version_string/info" | jq -r .available)
+              available=$(curl -s -H "Referer: https://armconverter.com/decryptedappstore" -H "Cookie: session=$SESSION_TOKEN" "https://armconverter.com/decryptedappstore/download/$APPSTORE_ID/$BUNDLE_ID/$version_string/info" | jq -r .available)
               if [[ $available == 'true' ]]; then
                 echo "APP_VERSION=$version_string" >> $GITHUB_ENV
                 break
