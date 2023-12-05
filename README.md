@@ -23,7 +23,6 @@ inputs:
     type: boolean
   path:
     description: Path to download the ipa to
-    required: true
     type: string
   token:
     description: Your decryptedappstore session token

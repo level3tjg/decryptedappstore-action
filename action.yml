@@ -24,10 +24,10 @@ inputs:
 outputs:
   bundle-id:
     description: "Bundle ID of the downloaded app"
-    value: "${{ steps.set-outputs.outputs.bundle-id }}"
+    value: "${{ steps.app-info.outputs.bundle-id }}"
   version:
     description: "Version string of the downloaded app"
-    value: "${{ steps.set-outputs.outputs.version }}"
+    value: "${{ steps.get-token.outputs.version }}"
 
 runs:
   using: composite
@@ -46,42 +46,75 @@ runs:
       env:
         DEBIAN_FRONTEND: noninteractive
 
-    - name: Set environment variables
+    - name: Get app info
+      id: app-info
       shell: bash
       run: |
-        APPSTORE_URL="${{ inputs.appstore_url }}"
-        echo "APPSTORE_ID=$(echo ${APPSTORE_URL##*/} | cut -c 3-)" >> $GITHUB_ENV
-        echo "BUNDLE_ID=$(curl -s "${{ inputs.appstore_url }}" | xmllint --html --xpath "string(//script[@id=\"shoebox-media-api-cache-apps\"])" - 2> /dev/null | jq -r ".[] | fromjson | .d[0].attributes.platformAttributes.ios.bundleId")" >> $GITHUB_ENV
-        echo "APP_VERSION=${{ inputs.version }}" >> $GITHUB_ENV
+        appstore_url="${{ inputs.appstore_url }}"
+        echo "appstore-id=$(echo ${appstore_url##*/} | cut -c 3-)" >> "$GITHUB_OUTPUT"
+        echo "bundle-id=$(curl -s "${{ inputs.appstore_url }}" | xmllint --html --xpath "string(//script[@id=\"shoebox-media-api-cache-apps\"])" - 2> /dev/null | jq -r ".[] | fromjson | .d[0].attributes.platformAttributes.ios.bundleId")" >> "$GITHUB_OUTPUT"
 
-    - name: Resolve version
-      if: ${{ contains(inputs.version, 'latest') }}
+    - name: Get download token
+      id: get-token
       shell: bash
       run: |
-        versions=$(curl -s -X POST --cookie "session=$SESSION_TOKEN" "https://armconverter.com/decryptedappstore/versions/$APPSTORE_ID/0?country=us" | jq .versions)
-        latest_version=$(echo $versions | jq ".[-1]")
-        exists=$(echo $latest_version | jq -r .exists)
-        available=$(curl -s --cookie "session=$SESSION_TOKEN" -H "Referer: https://armconverter.com/decryptedappstore" "https://armconverter.com/decryptedappstore/download/$APPSTORE_ID/$BUNDLE_ID/$(echo $latest_version | jq -r .ver)/info" | jq -r .available)
-        if [[ $exists != 'true' || $available != 'true' ]]; then
+        appstore_id=${{ steps.app-info.outputs.appstore-id }}
+        bundle_id=${{ steps.app-info.outputs.bundle-id }}
+        versions=$(curl -s -X POST --cookie "session=$SESSION_TOKEN" "https://armconverter.com/decryptedappstore/versions/$appstore_id/0?country=us" | jq .versions)
+        available_and_exists() {
+          info_url="https://armconverter.com/decryptedappstore/download/$appstore_id/$bundle_id/$(echo "$1" | jq -r .ver)/info"
+          info=$(curl -s --cookie "session=$SESSION_TOKEN" -H "Referer: https://armconverter.com/decryptedappstore" $info_url)
+          if [[ $(echo $1 | jq -r .exists) == 'true' && $(echo $info | jq -r .available) == 'true' ]]; then
+            echo true
+          else
+            echo false
+          fi
+        }
+        get_token() {
+          if [[ $(available_and_exists "$1") == 'true' ]]; then
+            prepare=$(curl -s -X POST --cookie "session=$SESSION_TOKEN" -H "Referer: https://armconverter.com/decryptedappstore" "https://armconverter.com/decryptedappstore/download/$appstore_id/$bundle_id/$(echo $1 | jq -r .ver)/prepare")
+            error=$(echo $prepare | jq -r .error)
+            token=$(echo $prepare | jq -r .token)
+            if [[ (-z $error || $error == 'null') && ! -z $token && token != 'null' ]]; then
+              echo $token
+              return 0
+            fi
+          fi
+          echo null
+        }
+        if [[ ${{ inputs.version }} == latest* ]]; then
+          version=$(echo $versions | jq ".[-1]")
+        else
+          for ((i = 0; i < $(echo $versions | jq length); i++)); do
+            version=$(echo $versions | jq ".[-$i]")
+            if [[ $(echo $version | jq -r .ver) == ${{ inputs.version}} ]]; then
+              break
+            fi
+          done
+          if [[ $(echo $version | jq -r .ver) != ${{ inputs.version }} ]]; then
+            "Version ${{ inputs.version }} not found"
+          fi
+        fi
+        token=$(get_token "$version")
+        if [[ $token == 'null' ]]; then
           if [[ ${{ inputs.version }} != 'latest-available' ]]; then
-            echo "Version $(echo $latest_version | jq -r .ver) is not available"
+            echo "Version $(echo $version | jq -r .ver) is not available"
             exit 1
           fi
           for ((i = 1; i < $(echo $versions | jq length); i++)); do
             version=$(echo $versions | jq ".[-$i]")
-            version_string=$(echo $version | jq -r .ver)
-            exists=$(echo $version | jq -r .exists)
-            if [[ ! -z $version_string && $exists == 'true' ]]; then
-              available=$(curl -s --cookie "session=$SESSION_TOKEN" -H "Referer: https://armconverter.com/decryptedappstore" "https://armconverter.com/decryptedappstore/download/$APPSTORE_ID/$BUNDLE_ID/$version_string/info" | jq -r .available)
-              if [[ $available == 'true' ]]; then
-                echo "APP_VERSION=$version_string" >> $GITHUB_ENV
-                break
-              fi
+            token=$(get_token "$version")
+            if [[ token != 'null' ]]; then
+              break
             fi
           done
-        else
-          echo "APP_VERSION=$(echo $latest_version | jq -r .ver)" >> $GITHUB_ENV
         fi
+        if [[ $token == 'null' ]]; then
+          echo "Failed to get download token"
+          exit 1
+        fi
+        echo "token=$token" >> "$GITHUB_OUTPUT"
+        echo "version=$(echo $version | jq -r .ver)" >> "$GITHUB_OUTPUT"
       env:
         SESSION_TOKEN: ${{ inputs.token }}
 
@@ -91,24 +124,17 @@ runs:
       uses: actions/cache@v3
       with:
         path: ${{ inputs.path }}
-        key: ${{ env.BUNDLE_ID }}-${{ env.APP_VERSION }}-IPA
+        key: ${{ steps.app-info.outputs.bundle-id }}-${{ steps.get-token.outputs.version }}-IPA
 
     - name: Download IPA
-      if: ${{ inputs.path != '' && (inputs.cache != 'true' || steps.cache-ipa.outputs.cache-hit != 'true') }}
+      if: ${{ inputs.path != '' && steps.cache-ipa.outputs.cache-hit != 'true' }}
       shell: bash
       run: |
-        token=$(curl -s -X POST --cookie "session=$SESSION_TOKEN"  -H "Referer: https://armconverter.com/decryptedappstore" "https://armconverter.com/decryptedappstore/download/$APPSTORE_ID/$BUNDLE_ID/$APP_VERSION/prepare" | jq -r .token)
-        if [[ $token == 'null' || -z $token ]]; then
-          echo "Failed to get download link for IPA"
+        curl -s -o "${{ inputs.path }}" "https://armconverter.com/decryptedappstore/download/${{ steps.app-info.outputs.appstore-id }}/${{ steps.app-info.outputs.bundle-id }}/${{ steps.get-token.outputs.version }}?token=${{ steps.get-token.outputs.token }}"
+        zip -T "${{ inputs.path }}"
+        if [[ $? != 0 ]]; then
+          echo "Failed to download IPA"
           exit 1
         fi
-        curl -s -o "${{ inputs.path }}" "https://armconverter.com/decryptedappstore/download/$APPSTORE_ID/$BUNDLE_ID/$APP_VERSION?token=$token"
       env:
         SESSION_TOKEN: ${{ inputs.token }}
-
-    - name: Set outputs
-      id: set-outputs
-      shell: bash
-      run: |
-        echo "bundle-id=${{ env.BUNDLE_ID }}" >> "$GITHUB_OUTPUT"
-        echo "version=${{ env.APP_VERSION }}" >> "$GITHUB_OUTPUT"
