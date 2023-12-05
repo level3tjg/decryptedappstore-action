@@ -103,7 +103,7 @@ runs:
           fi
           for ((i = 1; i < $(echo $versions | jq length); i++)); do
             version=$(echo $versions | jq ".[-$i]")
-            if [[ $(echo $versions | jq -r .ver) == '' ]]; then
+            if [[ $(echo $version | jq -r .ver) == '' ]]; then
               continue
             fi
             token=$(get_token "$version")
