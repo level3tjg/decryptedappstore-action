@@ -12,7 +12,6 @@ inputs:
     type: boolean
   path:
     description: Path to download the ipa to
-    required: true
     type: string
   token:
     description: Your decryptedappstore session token
@@ -88,14 +87,14 @@ runs:
 
     - name: Cache IPA
       id: cache-ipa
-      if: ${{ inputs.cache == 'true' }}
+      if: ${{ inputs.path != '' && inputs.cache == 'true' }}
       uses: actions/cache@v3
       with:
         path: ${{ inputs.path }}
         key: ${{ env.BUNDLE_ID }}-${{ env.APP_VERSION }}-IPA
 
     - name: Download IPA
-      if: ${{ inputs.cache != 'true' || steps.cache-ipa.outputs.cache-hit != 'true' }}
+      if: ${{ inputs.path != '' && (inputs.cache != 'true' || steps.cache-ipa.outputs.cache-hit != 'true') }}
       shell: bash
       run: |
         token=$(curl -s -X POST --cookie "session=$SESSION_TOKEN"  -H "Referer: https://armconverter.com/decryptedappstore" "https://armconverter.com/decryptedappstore/download/$APPSTORE_ID/$BUNDLE_ID/$APP_VERSION/prepare" | jq -r .token)

@@ -15,6 +15,9 @@ jobs:
           - "https://apps.apple.com/us/app/reddit/id1064216828"
           - "https://apps.apple.com/us/app/x/id333903271"
           - "https://apps.apple.com/us/app/youtube-watch-listen-stream/id544007664"
+        path:
+          - App.ipa
+          - ''
     runs-on: ubuntu-latest
     steps:
       - name: Download IPA
@@ -22,9 +25,9 @@ jobs:
         with:
           appstore_url: "${{ matrix.url }}"
           cache: false
-          path: App.ipa
+          path: ${{ matrix.path }}
           token: "${{ secrets.SESSION_TOKEN }}"
 
       - name: Check IPA was downloaded
-        if: hashFiles('App.ipa') == ''
+        if: matrix.path != '' && hashFiles('App.ipa') == ''
         run: exit 1
