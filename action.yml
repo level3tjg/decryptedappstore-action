@@ -103,12 +103,16 @@ runs:
           fi
           for ((i = 1; i < $(echo $versions | jq length); i++)); do
             version=$(echo $versions | jq ".[-$i]")
+            if [[ $(echo $versions | jq -r .ver) == '' ]]; then
+              continue
+            fi
             token=$(get_token "$version")
             if [[ token != 'null' ]]; then
               break
             fi
           done
         fi
+        echo $(echo $version | jq -r .ver)
         if [[ $token == 'null' ]]; then
           echo "Failed to get download token"
           exit 1
