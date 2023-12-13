@@ -73,6 +73,7 @@ runs:
         get_token() {
           echo "get_token $1" 1>&2
           if [[ $(available_and_exists "$1") == 'true' ]]; then
+            echo "available" 1>&2
             prepare=$(curl -s -X POST --cookie "session=$SESSION_TOKEN" -H "Referer: https://armconverter.com/decryptedappstore" "https://armconverter.com/decryptedappstore/download/$appstore_id/$bundle_id/$(echo $1 | jq -r .ver)/prepare")
             error=$(echo $prepare | jq -r .error)
             token=$(echo $prepare | jq -r .token)
@@ -87,6 +88,7 @@ runs:
               return 0
             fi
           fi
+          echo "not available" 1>&2
           echo 'null'
         }
         if [[ ${{ inputs.version }} == latest* ]]; then
