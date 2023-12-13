@@ -76,6 +76,7 @@ runs:
             error=$(echo $prepare | jq -r .error)
             token=$(echo $prepare | jq -r .token)
             if [[ ! -z $error && $error != 'null' ]]; then
+              echo "$error" 1>&2
               echo 'null'
               return 0
             fi
