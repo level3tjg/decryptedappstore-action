@@ -116,6 +116,7 @@ runs:
               continue
             fi
             token=$(get_token "$version")
+            echo $token 1>&2
             if [[ token != 'null' ]]; then
               break
             fi
