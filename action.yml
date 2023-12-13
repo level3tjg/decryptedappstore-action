@@ -75,12 +75,16 @@ runs:
             prepare=$(curl -s -X POST --cookie "session=$SESSION_TOKEN" -H "Referer: https://armconverter.com/decryptedappstore" "https://armconverter.com/decryptedappstore/download/$appstore_id/$bundle_id/$(echo $1 | jq -r .ver)/prepare")
             error=$(echo $prepare | jq -r .error)
             token=$(echo $prepare | jq -r .token)
-            if [[ (-z $error || $error == 'null') && ! -z $token && token != 'null' ]]; then
+            if [[ ! -z $error && $error != 'null' ]]; then
+              echo 'null'
+              return 0
+            fi
+            if [[ ! -z $token && token != 'null' ]]; then
               echo $token
               return 0
             fi
           fi
-          echo null
+          echo 'null'
         }
         if [[ ${{ inputs.version }} == latest* ]]; then
           version=$(echo $versions | jq ".[-1]")
