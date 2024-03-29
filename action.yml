@@ -127,7 +127,7 @@ runs:
     - name: Cache IPA
       id: cache-ipa
       if: ${{ inputs.path != '' && inputs.cache == 'true' }}
-      uses: actions/cache@v3
+      uses: actions/cache@v4
       with:
         path: ${{ inputs.path }}
         key: ${{ steps.app-info.outputs.bundle-id }}-${{ steps.get-token.outputs.version }}-IPA
