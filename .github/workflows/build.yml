@@ -12,7 +12,7 @@ jobs:
     strategy:
       matrix:
         url:
-          - "https://apps.apple.com/us/app/twitch-live-game-streaming/id460177396"
+          - "https://apps.apple.com/us/app/twitch-live-streaming/id460177396"
           - "https://apps.apple.com/us/app/youtube-watch-listen-stream/id544007664"
         path:
           - App.ipa
